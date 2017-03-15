@@ -33,7 +33,7 @@ import cc.sferalabs.sfera.events.NumberEvent;
  * 
  * @author Giampiero Baggiani
  * 
- * @sfera.event_id onewire.&lt;id&gt; where &lt;id&gt; is the ID of the 1-Wire
+ * @sfera.event_id onewire.bus.&lt;id&gt; where &lt;id&gt; is the ID of the 1-Wire
  *                 device
  * @sfera.event_val val value read from the device
  *
