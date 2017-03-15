@@ -178,6 +178,9 @@ public class IonoPi extends Driver {
 				Bus.postIfChanged(new OutputIonoPiEvent(this, Output.O2, Output.O2.isClosed()));
 				Bus.postIfChanged(new OutputIonoPiEvent(this, Output.O3, Output.O3.isClosed()));
 				Bus.postIfChanged(new OutputIonoPiEvent(this, Output.O4, Output.O4.isClosed()));
+				Bus.postIfChanged(new OutputIonoPiEvent(this, Output.OC1, Output.OC1.isClosed()));
+				Bus.postIfChanged(new OutputIonoPiEvent(this, Output.OC2, Output.OC2.isClosed()));
+				Bus.postIfChanged(new OutputIonoPiEvent(this, Output.OC3, Output.OC3.isClosed()));
 				Bus.postIfChanged(
 						new LedIonoPiEvent(this, cc.sferalabs.libs.iono_pi.IonoPi.LED.isOn()));
 				lastOutputsRead = System.currentTimeMillis();
@@ -305,7 +308,7 @@ public class IonoPi extends Driver {
 	 *            open it
 	 */
 	public void setOc1(boolean closed) {
-		Output.OC1.set(closed);
+		setO(Output.OC1, closed);
 	}
 
 	/**
@@ -316,7 +319,7 @@ public class IonoPi extends Driver {
 	 *            open it
 	 */
 	public void setOc2(boolean closed) {
-		Output.OC2.set(closed);
+		setO(Output.OC2, closed);
 	}
 
 	/**
@@ -327,7 +330,7 @@ public class IonoPi extends Driver {
 	 *            open it
 	 */
 	public void setOc3(boolean closed) {
-		Output.OC3.set(closed);
+		setO(Output.OC3, closed);
 	}
 
 	/**
