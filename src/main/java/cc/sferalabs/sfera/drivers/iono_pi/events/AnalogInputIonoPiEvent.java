@@ -38,10 +38,29 @@ import cc.sferalabs.sfera.events.NumberEvent;
 public class AnalogInputIonoPiEvent extends NumberEvent implements IonoPiEvent {
 
 	private final AnalogInput input;
+	private final int rawValue;
 
-	public AnalogInputIonoPiEvent(IonoPi source, AnalogInput input, float value) {
-		super(source, input.toString().toLowerCase(), value);
+	public AnalogInputIonoPiEvent(IonoPi source, AnalogInput input, int value) {
+		super(source, input.toString().toLowerCase(), toVoltage(input, value));
 		this.input = input;
+		this.rawValue = value;
+	}
+
+	/**
+	 * 
+	 * @param input
+	 * @param value
+	 * @return
+	 */
+	private static float toVoltage(AnalogInput input, int value) {
+		float factor;
+		if (input == AnalogInput.AI1 || input == AnalogInput.AI2) {
+			factor = 0.007319f;
+		} else {
+			factor = 0.000725f;
+		}
+
+		return value * factor;
 	}
 
 	/**
@@ -49,6 +68,13 @@ public class AnalogInputIonoPiEvent extends NumberEvent implements IonoPiEvent {
 	 */
 	public AnalogInput getInput() {
 		return input;
+	}
+
+	/**
+	 * @return the raw analog value read from the input
+	 */
+	public int getRawValue() {
+		return rawValue;
 	}
 
 }
