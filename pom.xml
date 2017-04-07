@@ -4,7 +4,7 @@
 
 	<groupId>cc.sferalabs.sfera.drivers</groupId>
 	<artifactId>iono-pi</artifactId>
-	<version>1.0.1</version>
+	<version>1.1.0</version>
 
 	<name>IonoPi</name>
 	<description>Driver for Iono Pi</description>
@@ -146,7 +146,7 @@
 		<dependency>
 			<groupId>cc.sferalabs.libs</groupId>
 			<artifactId>iono-pi</artifactId>
-			<version>1.2.1</version>
+			<version>1.3.0</version>
 		</dependency>
 	</dependencies>
 </project>

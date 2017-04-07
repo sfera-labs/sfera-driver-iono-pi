@@ -26,8 +26,14 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Scanner;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 
 import cc.sferalabs.libs.iono_pi.DigitalInputListener;
 import cc.sferalabs.libs.iono_pi.IonoPi.AnalogInput;
@@ -57,7 +63,8 @@ import cc.sferalabs.sfera.events.Bus;
 public class IonoPi extends Driver {
 
 	private final static long ONE_WIRE_READ_INTERVAL = 2 * 1000;
-	private final static long OUTPUTS_READ_INTERVAL = 5 * 60 * 1000;
+	private final static long INPUTS_OUTPUTS_READ_INTERVAL = 5 * 60 * 1000;
+	private final static long DIGITAL_INPUTS_FAST_POLLING_PERIOD = 3 * 1000;
 
 	private final IonoPi thisIonoPi;
 
@@ -65,18 +72,26 @@ public class IonoPi extends Driver {
 
 		@Override
 		public void onChange(DigitalInput di, boolean high) {
-			Bus.post(new DigitalInputIonoPiEvent(thisIonoPi, di, high));
+			digitalInterruptsTs.put(di, System.currentTimeMillis());
+			digitalInterruptsQueue.offer(di);
 		}
 	};
+
+	private final ConcurrentHashMap<DigitalInput, Long> digitalInterruptsTs = new ConcurrentHashMap<>();
+	private final ArrayBlockingQueue<Object> digitalInterruptsQueue = new ArrayBlockingQueue<>(1);
 
 	private boolean oneWireBus;
 	private boolean oneWireMax;
 	private List<DigitalIO> oneWireMaxPins;
 
 	private long readInterval;
+	private float analogMinVariation;
 
+	private long lastAnalogRead;
+	private long lastInputsOutputsRead;
 	private long lastOneWireRead;
-	private long lastOutputsRead;
+
+	private final Map<AnalogInput, Float> lastAnalogValues = new HashMap<>();
 
 	public IonoPi(String id) {
 		super(id);
@@ -93,6 +108,7 @@ public class IonoPi extends Driver {
 		}
 
 		readInterval = config.get("read_interval", 2000);
+		analogMinVariation = new Double(config.get("analog_min_variation", 0.0d)).floatValue();
 		boolean w1 = config.get("w1", false);
 		boolean w2 = config.get("w2", false);
 		oneWireBus = config.get("one_wire_bus", false);
@@ -141,9 +157,11 @@ public class IonoPi extends Driver {
 			return false;
 		}
 
+		int debounce = config.get("digital_debounce", 0);
+
 		for (DigitalInput di : DigitalInput.values()) {
+			di.setDebounce(debounce);
 			di.setListener(digitalInputslistener);
-			Bus.post(new DigitalInputIonoPiEvent(this, di, di.isHigh()));
 		}
 
 		if (w1) {
@@ -168,26 +186,39 @@ public class IonoPi extends Driver {
 
 	@Override
 	protected boolean loop() throws InterruptedException {
+		long now = System.currentTimeMillis();
 		try {
-			for (AnalogInput ai : AnalogInput.values()) {
-				Bus.postIfChanged(new AnalogInputIonoPiEvent(this, ai, ai.read()));
+			if (now > lastAnalogRead + readInterval) {
+				for (AnalogInput ai : AnalogInput.values()) {
+					int val = ai.read();
+					AnalogInputIonoPiEvent ev = new AnalogInputIonoPiEvent(this, ai, val);
+					if (analogMinVariation == 0) {
+						Bus.postIfChanged(ev);
+					} else {
+						Float lastVal = lastAnalogValues.get(ai);
+						float voltVal = (float) ev.getValue();
+						if (lastVal == null || Math.abs(lastVal - voltVal) >= analogMinVariation) {
+							Bus.postIfChanged(ev);
+							lastAnalogValues.put(ai, voltVal);
+						}
+					}
+				}
+				lastAnalogRead = now;
 			}
 
-			if (System.currentTimeMillis() > lastOutputsRead + OUTPUTS_READ_INTERVAL) {
-				Bus.postIfChanged(new OutputIonoPiEvent(this, Output.O1, Output.O1.isClosed()));
-				Bus.postIfChanged(new OutputIonoPiEvent(this, Output.O2, Output.O2.isClosed()));
-				Bus.postIfChanged(new OutputIonoPiEvent(this, Output.O3, Output.O3.isClosed()));
-				Bus.postIfChanged(new OutputIonoPiEvent(this, Output.O4, Output.O4.isClosed()));
-				Bus.postIfChanged(new OutputIonoPiEvent(this, Output.OC1, Output.OC1.isClosed()));
-				Bus.postIfChanged(new OutputIonoPiEvent(this, Output.OC2, Output.OC2.isClosed()));
-				Bus.postIfChanged(new OutputIonoPiEvent(this, Output.OC3, Output.OC3.isClosed()));
+			if (now > lastInputsOutputsRead + INPUTS_OUTPUTS_READ_INTERVAL) {
+				for (Output o : Output.values()) {
+					Bus.postIfChanged(new OutputIonoPiEvent(this, o, o.isClosed()));
+				}
+				for (DigitalInput di : DigitalInput.values()) {
+					Bus.postIfChanged(new DigitalInputIonoPiEvent(this, di, di.isHigh()));
+				}
 				Bus.postIfChanged(
 						new LedIonoPiEvent(this, cc.sferalabs.libs.iono_pi.IonoPi.LED.isOn()));
-				lastOutputsRead = System.currentTimeMillis();
+				lastInputsOutputsRead = now;
 			}
 
-			if ((oneWireBus || oneWireMax)
-					&& System.currentTimeMillis() > lastOneWireRead + ONE_WIRE_READ_INTERVAL) {
+			if ((oneWireBus || oneWireMax) && now > lastOneWireRead + ONE_WIRE_READ_INTERVAL) {
 				TasksManager.execute(new Task("IonoPi1WireMonitor-") {
 
 					@Override
@@ -221,16 +252,26 @@ public class IonoPi extends Driver {
 
 							}
 						}
-						lastOneWireRead = System.currentTimeMillis();
 					}
 				});
+				lastOneWireRead = now;
 			}
 		} catch (Exception e) {
 			log.error("Loop error", e);
 			return false;
 		}
 
-		Thread.sleep(readInterval);
+		if (digitalInterruptsQueue.poll(readInterval, TimeUnit.MILLISECONDS) != null) {
+			for (Entry<DigitalInput, Long> e : digitalInterruptsTs.entrySet()) {
+				long ts = e.getValue();
+				if (now < ts + DIGITAL_INPUTS_FAST_POLLING_PERIOD) {
+					DigitalInput di = e.getKey();
+					Bus.postIfChanged(new DigitalInputIonoPiEvent(this, di, di.isHigh()));
+					digitalInterruptsQueue.offer(di);
+				}
+			}
+			Thread.sleep(1);
+		}
 
 		return true;
 	}
