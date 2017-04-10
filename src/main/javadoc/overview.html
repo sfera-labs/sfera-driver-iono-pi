@@ -16,7 +16,7 @@
 		@sfera.config w2
 			Set to true to enable and monitor Wiegand interface 2
 		@sfera.config one_wire_bus
-			Set to true to enable the 1-Wire bus interface and monitor the connected devices on TTL1
+			Set to false to disable the reading of the 1-Wire bus devices connected on TTL1. If not specified the monitoring will be enabled if the 1-Wire interface is enabled in the Raspberry Pi OS configuration.
 		@sfera.config one_wire_max
 			Specify the TTL number(s) on which to enable the MaxDetect 1-Wire interface and monitor the connected devices. 
 			E.g. set to 2 to monitor TTL2, set to [3, 4] to monitor TTL3 and TTL4.

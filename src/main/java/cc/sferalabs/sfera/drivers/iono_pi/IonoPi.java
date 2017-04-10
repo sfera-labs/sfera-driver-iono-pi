@@ -111,7 +111,16 @@ public class IonoPi extends Driver {
 		analogMinVariation = new Double(config.get("analog_min_variation", 0.0d)).floatValue();
 		boolean w1 = config.get("w1", false);
 		boolean w2 = config.get("w2", false);
-		oneWireBus = config.get("one_wire_bus", false);
+
+		try {
+			cc.sferalabs.libs.iono_pi.IonoPi.OneWire.getBusDevices();
+			oneWireBus = true;
+		} catch (IOException e) {
+			oneWireBus = false;
+		}
+		oneWireBus = config.get("one_wire_bus", oneWireBus);
+		log.debug("1-Wire bus {}", oneWireBus ? "enabled" : "disabled");
+
 		Object oneWireMaxPinsConf = config.get("one_wire_max", null);
 		if (oneWireMaxPinsConf == null) {
 			oneWireMax = false;
@@ -171,13 +180,9 @@ public class IonoPi extends Driver {
 			TasksManager.execute(new WiegandMonitor(Wiegand.W2, this));
 		}
 
-		if (oneWireBus) {
-			log.debug("Enabled 1-Wire bus");
-		}
-
 		if (oneWireMax) {
 			for (DigitalIO dio : oneWireMaxPins) {
-				log.debug("Enabled 1-Wire max on " + dio.toString());
+				log.debug("1-Wire max on {} enabled", dio.toString());
 			}
 		}
 
