@@ -33,8 +33,8 @@ import cc.sferalabs.sfera.events.NumberEvent;
  * 
  * @author Giampiero Baggiani
  * 
- * @sfera.event_id onewire.bus.&lt;id&gt; where &lt;id&gt; is the ID of the 1-Wire
- *                 device
+ * @sfera.event_id onewire.bus.d&lt;id&gt; where &lt;id&gt; is the ID of the 1-Wire
+ *                 device (e.g. 'onewire.bus.d28_00000aabbccc')
  * @sfera.event_val val value read from the device
  *
  */
@@ -43,7 +43,7 @@ public class OneWireBusDeviceIonoPiEvent extends NumberEvent implements IonoPiEv
 	private final OneWireBusDevice device;
 
 	public OneWireBusDeviceIonoPiEvent(IonoPi source, OneWireBusDevice device) throws IOException {
-		super(source, "onewire.bus." + device.getId(), device.readTemperature(3) / 1000.0);
+		super(source, "onewire.bus.d" + device.getId().replace('-', '_'), device.readTemperature(3) / 1000.0);
 		this.device = device;
 	}
 
