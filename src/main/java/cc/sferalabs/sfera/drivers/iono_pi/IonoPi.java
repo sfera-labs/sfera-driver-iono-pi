@@ -80,6 +80,7 @@ public class IonoPi extends Driver {
 	private final ConcurrentHashMap<DigitalInput, Long> digitalInterruptsTs = new ConcurrentHashMap<>();
 	private final ArrayBlockingQueue<Object> digitalInterruptsQueue = new ArrayBlockingQueue<>(1);
 
+	private boolean digitalInputs;
 	private boolean oneWireBus;
 	private boolean oneWireMax;
 	private List<DigitalIO> oneWireMaxPins;
@@ -148,15 +149,13 @@ public class IonoPi extends Driver {
 				log.error("Cannot use Wiegand 1 while 1-Wire bus is enabled");
 				return false;
 			}
-			if (oneWireMax && (oneWireMaxPins.contains(DigitalIO.TTL1)
-					|| oneWireMaxPins.contains(DigitalIO.TTL2))) {
+			if (oneWireMax && (oneWireMaxPins.contains(DigitalIO.TTL1) || oneWireMaxPins.contains(DigitalIO.TTL2))) {
 				log.error("Cannot use both Wiegand and 1-Wire max on TTL1 and TTL2");
 				return false;
 			}
 		}
 		if (w2) {
-			if (oneWireMax && (oneWireMaxPins.contains(DigitalIO.TTL3)
-					|| oneWireMaxPins.contains(DigitalIO.TTL4))) {
+			if (oneWireMax && (oneWireMaxPins.contains(DigitalIO.TTL3) || oneWireMaxPins.contains(DigitalIO.TTL4))) {
 				log.error("Cannot use both Wiegand and 1-Wire max on TTL3 and TTL4");
 				return false;
 			}
@@ -165,12 +164,14 @@ public class IonoPi extends Driver {
 			log.error("Cannot use both 1-Wire bus and 1-Wire max on TTL1");
 			return false;
 		}
-
-		int debounce = config.get("digital_debounce", 0);
-
-		for (DigitalInput di : DigitalInput.values()) {
-			di.setDebounce(debounce);
-			di.setListener(digitalInputslistener);
+		
+		digitalInputs = config.get("digital_inputs", true);
+		if (digitalInputs) {
+			int debounce = config.get("digital_debounce", 0);
+			for (DigitalInput di : DigitalInput.values()) {
+				di.setDebounce(debounce);
+				di.setListener(digitalInputslistener);
+			}
 		}
 
 		if (w1) {
@@ -193,7 +194,7 @@ public class IonoPi extends Driver {
 	protected boolean loop() throws InterruptedException {
 		long now = System.currentTimeMillis();
 		try {
-			if (now > lastAnalogRead + readInterval) {
+			if (readInterval > 0 && now > lastAnalogRead + readInterval) {
 				for (AnalogInput ai : AnalogInput.values()) {
 					int val = ai.read();
 					AnalogInputIonoPiEvent ev = new AnalogInputIonoPiEvent(this, ai, val);
@@ -215,11 +216,12 @@ public class IonoPi extends Driver {
 				for (Output o : Output.values()) {
 					Bus.postIfChanged(new OutputIonoPiEvent(this, o, o.isClosed()));
 				}
-				for (DigitalInput di : DigitalInput.values()) {
-					Bus.postIfChanged(new DigitalInputIonoPiEvent(this, di, di.isHigh()));
+				if (digitalInputs) {
+					for (DigitalInput di : DigitalInput.values()) {
+						Bus.postIfChanged(new DigitalInputIonoPiEvent(this, di, di.isHigh()));
+					}
 				}
-				Bus.postIfChanged(
-						new LedIonoPiEvent(this, cc.sferalabs.libs.iono_pi.IonoPi.LED.isOn()));
+				Bus.postIfChanged(new LedIonoPiEvent(this, cc.sferalabs.libs.iono_pi.IonoPi.LED.isOn()));
 				lastInputsOutputsRead = now;
 			}
 
@@ -230,10 +232,8 @@ public class IonoPi extends Driver {
 					protected void execute() {
 						if (oneWireBus) {
 							try {
-								for (OneWireBusDevice d : cc.sferalabs.libs.iono_pi.IonoPi.OneWire
-										.getBusDevices()) {
-									Bus.postIfChanged(
-											new OneWireBusDeviceIonoPiEvent(thisIonoPi, d));
+								for (OneWireBusDevice d : cc.sferalabs.libs.iono_pi.IonoPi.OneWire.getBusDevices()) {
+									Bus.postIfChanged(new OneWireBusDeviceIonoPiEvent(thisIonoPi, d));
 								}
 							} catch (Exception e) {
 								log.warn("1-Wire bus read error", e);
@@ -243,13 +243,11 @@ public class IonoPi extends Driver {
 							for (DigitalIO dio : oneWireMaxPins) {
 								int[] t_rh;
 								try {
-									t_rh = cc.sferalabs.libs.iono_pi.IonoPi.OneWire
-											.maxDetectRead(dio, 7);
+									t_rh = cc.sferalabs.libs.iono_pi.IonoPi.OneWire.maxDetectRead(dio, 7);
 									if (t_rh != null) {
-										Bus.postIfChanged(new OneWireMaxTemperatureIonoPiEvent(
-												thisIonoPi, dio, t_rh[0]));
-										Bus.postIfChanged(new OneWireMaxHumidityIonoPiEvent(
-												thisIonoPi, dio, t_rh[1]));
+										Bus.postIfChanged(
+												new OneWireMaxTemperatureIonoPiEvent(thisIonoPi, dio, t_rh[0]));
+										Bus.postIfChanged(new OneWireMaxHumidityIonoPiEvent(thisIonoPi, dio, t_rh[1]));
 									}
 								} catch (IOException e) {
 									log.warn("1-Wire max read error", e);
@@ -266,7 +264,8 @@ public class IonoPi extends Driver {
 			return false;
 		}
 
-		if (digitalInterruptsQueue.poll(readInterval, TimeUnit.MILLISECONDS) != null) {
+		long wait = readInterval > 0 ? readInterval : ONE_WIRE_READ_INTERVAL;
+		if (digitalInterruptsQueue.poll(wait, TimeUnit.MILLISECONDS) != null) {
 			for (Entry<DigitalInput, Long> e : digitalInterruptsTs.entrySet()) {
 				long ts = e.getValue();
 				if (now < ts + DIGITAL_INPUTS_FAST_POLLING_PERIOD) {

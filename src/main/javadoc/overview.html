@@ -6,9 +6,11 @@
 		@sfera.config type
 			cc.sferalabs.sfera.drivers.iono_pi.IonoPi
 		@sfera.config read_interval
-			Interval, in milliseconds, between subsequent readings of analog inputs and 1-Wire devices. If the value is set below 2000 (i.e. less than 2 seconds) the specified interval is only applied to analog inputs; 1-Wire devices will be polled with a 2 seconds interval.
+			Interval, in milliseconds, between subsequent readings of analog inputs and 1-Wire devices. If the value is set below 2000 (i.e. less than 2 seconds) the specified interval is only applied to analog inputs; 1-Wire devices will be polled with a 2 seconds interval. Set to 0 to disable analog inputs polling.
 		@sfera.config analog_min_variation
 			Minimun voltage variation to be measured on analog inputs, after an event has been triggered, for a new one to occur. Defaults to 0
+		@sfera.config digital_inputs
+			Set to false to disable digital inputs monitoring
 		@sfera.config digital_debounce
 			Time, in milliseconds, required for digital inputs to maintain a value, after a variation, before an event is triggered. Defaults to 0
 		@sfera.config w1
