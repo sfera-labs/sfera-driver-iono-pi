@@ -31,8 +31,8 @@ import cc.sferalabs.sfera.events.NumberEvent;
  * 
  * @author Giampiero Baggiani
  * 
- * @sfera.event_id wiegand.&lt;n&gt; where &lt;n&gt; is the interface's index,
- *                 i.e. "wiegand.1" or "wiegand.2"
+ * @sfera.event_id wiegand.i&lt;n&gt; where &lt;n&gt; is the interface's index,
+ *                 i.e. "wiegand.i1" or "wiegand.i2"
  * @sfera.event_val data number (long) holding the read data
  *
  */
@@ -42,7 +42,7 @@ public class WiegandIonoPiEvent extends NumberEvent implements IonoPiEvent {
 	private final int bitsCount;
 
 	public WiegandIonoPiEvent(IonoPi source, Wiegand wInterface, int bitsCount, long data) {
-		super(source, "wiegand." + (wInterface.ordinal() + 1), data);
+		super(source, "wiegand.i" + (wInterface.ordinal() + 1), data);
 		this.wInterface = wInterface;
 		this.bitsCount = bitsCount;
 	}
