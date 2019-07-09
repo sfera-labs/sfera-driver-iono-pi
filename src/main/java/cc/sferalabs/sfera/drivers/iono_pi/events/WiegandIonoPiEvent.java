@@ -24,7 +24,7 @@ package cc.sferalabs.sfera.drivers.iono_pi.events;
 
 import cc.sferalabs.libs.iono_pi.IonoPi.Wiegand;
 import cc.sferalabs.sfera.drivers.iono_pi.IonoPi;
-import cc.sferalabs.sfera.events.NumberEvent;
+import cc.sferalabs.sfera.events.ObjectEvent;
 
 /**
  * Event triggered when data is read from a Wiegand interface.
@@ -33,16 +33,19 @@ import cc.sferalabs.sfera.events.NumberEvent;
  * 
  * @sfera.event_id wiegand.i&lt;n&gt; where &lt;n&gt; is the interface's index,
  *                 i.e. "wiegand.i1" or "wiegand.i2"
- * @sfera.event_val data number (long) holding the read data
+ * @sfera.event_val data number (long) holding the read data or string
+ *                  {@code "<bits_count>/<data_value>"} if option
+ *                  {@code wiegand_event_bits_count} set to {@code true}
  *
  */
-public class WiegandIonoPiEvent extends NumberEvent implements IonoPiEvent {
+public class WiegandIonoPiEvent extends ObjectEvent implements IonoPiEvent {
 
 	private final Wiegand wInterface;
 	private final int bitsCount;
 
 	public WiegandIonoPiEvent(IonoPi source, Wiegand wInterface, int bitsCount, long data) {
-		super(source, "wiegand.i" + (wInterface.ordinal() + 1), data);
+		super(source, "wiegand.i" + (wInterface.ordinal() + 1),
+				source.getWiegandEventBitsCountOption() ? bitsCount + "/" + data : data);
 		this.wInterface = wInterface;
 		this.bitsCount = bitsCount;
 	}

@@ -84,6 +84,7 @@ public class IonoPi extends Driver {
 	private boolean oneWireBus;
 	private boolean oneWireMax;
 	private List<DigitalIO> oneWireMaxPins;
+	private boolean wiegandEventBitsCount;
 
 	private long readInterval;
 	private float analogMinVariation;
@@ -164,7 +165,7 @@ public class IonoPi extends Driver {
 			log.error("Cannot use both 1-Wire bus and 1-Wire max on TTL1");
 			return false;
 		}
-		
+
 		digitalInputs = config.get("digital_inputs", true);
 		if (digitalInputs) {
 			int debounce = config.get("digital_debounce", 0);
@@ -173,6 +174,8 @@ public class IonoPi extends Driver {
 				di.setListener(digitalInputslistener);
 			}
 		}
+
+		wiegandEventBitsCount = config.get("wiegand_event_bits_count", false);
 
 		if (w1) {
 			TasksManager.execute(new WiegandMonitor(Wiegand.W1, this));
@@ -286,6 +289,13 @@ public class IonoPi extends Driver {
 	}
 
 	/**
+	 * @return wiegand_event_bits_count option
+	 */
+	public boolean getWiegandEventBitsCountOption() {
+		return wiegandEventBitsCount;
+	}
+
+	/**
 	 * Sets the state of the green LED
 	 * 
 	 * @param on
@@ -349,8 +359,7 @@ public class IonoPi extends Driver {
 	 * Sets the state of open collector OC1
 	 * 
 	 * @param closed
-	 *            {@code true} to close the open collector, {@code false} to
-	 *            open it
+	 *            {@code true} to close the open collector, {@code false} to open it
 	 */
 	public void setOc1(boolean closed) {
 		setO(Output.OC1, closed);
@@ -360,8 +369,7 @@ public class IonoPi extends Driver {
 	 * Sets the state of open collector OC2
 	 * 
 	 * @param closed
-	 *            {@code true} to close the open collector, {@code false} to
-	 *            open it
+	 *            {@code true} to close the open collector, {@code false} to open it
 	 */
 	public void setOc2(boolean closed) {
 		setO(Output.OC2, closed);
@@ -371,8 +379,7 @@ public class IonoPi extends Driver {
 	 * Sets the state of open collector OC3
 	 * 
 	 * @param closed
-	 *            {@code true} to close the open collector, {@code false} to
-	 *            open it
+	 *            {@code true} to close the open collector, {@code false} to open it
 	 */
 	public void setOc3(boolean closed) {
 		setO(Output.OC3, closed);
@@ -425,8 +432,7 @@ public class IonoPi extends Driver {
 	 * 
 	 * @param index
 	 *            the index of the digital input to address (1 to 6)
-	 * @return {@code true} if the digital input is high, {@code false}
-	 *         otherwise
+	 * @return {@code true} if the digital input is high, {@code false} otherwise
 	 */
 	public boolean isDiHigh(int index) {
 		return DigitalInput.values()[index - 1].isHigh();
