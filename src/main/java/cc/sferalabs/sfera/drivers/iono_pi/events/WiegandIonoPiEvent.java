@@ -42,12 +42,14 @@ public class WiegandIonoPiEvent extends ObjectEvent implements IonoPiEvent {
 
 	private final Wiegand wInterface;
 	private final int bitsCount;
+	private final long data;
 
 	public WiegandIonoPiEvent(IonoPi source, Wiegand wInterface, int bitsCount, long data) {
 		super(source, "wiegand.i" + (wInterface.ordinal() + 1),
 				source.getWiegandEventBitsCountOption() ? bitsCount + "/" + data : data);
 		this.wInterface = wInterface;
 		this.bitsCount = bitsCount;
+		this.data = data;
 	}
 
 	/**
@@ -62,6 +64,13 @@ public class WiegandIonoPiEvent extends ObjectEvent implements IonoPiEvent {
 	 */
 	public int getBitsCount() {
 		return bitsCount;
+	}
+
+	/**
+	 * @return the data received
+	 */
+	public long getData() {
+		return data;
 	}
 
 }
