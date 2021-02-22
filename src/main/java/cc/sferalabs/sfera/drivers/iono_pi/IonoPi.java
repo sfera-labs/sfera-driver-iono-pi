@@ -110,7 +110,7 @@ public class IonoPi extends Driver {
 		}
 
 		readInterval = config.get("read_interval", 2000);
-		analogMinVariation = new Double(config.get("analog_min_variation", 0.0d)).floatValue();
+		analogMinVariation = ((Number) config.get("analog_min_variation", 0)).floatValue();
 		boolean w1 = config.get("w1", false);
 		boolean w2 = config.get("w2", false);
 
