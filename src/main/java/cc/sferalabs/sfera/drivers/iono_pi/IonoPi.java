@@ -316,6 +316,18 @@ public class IonoPi extends Driver {
 	}
 
 	/**
+	 * Sets the state of the output with the specified name
+	 * 
+	 * @param output
+	 *            output name
+	 * @param closed
+	 *            {@code true} to close the relay, {@code false} to open it
+	 */
+	public void setO(String output, boolean closed) {
+		setO(Output.valueOf(output), closed);
+	}
+
+	/**
 	 * Sets the state of relay O1
 	 * 
 	 * @param closed
