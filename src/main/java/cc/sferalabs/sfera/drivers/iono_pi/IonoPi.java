@@ -24,6 +24,9 @@ package cc.sferalabs.sfera.drivers.iono_pi;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -36,10 +39,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 
 import cc.sferalabs.libs.iono_pi.DigitalInputListener;
-import cc.sferalabs.libs.iono_pi.IonoPi.AnalogInput;
 import cc.sferalabs.libs.iono_pi.IonoPi.DigitalIO;
-import cc.sferalabs.libs.iono_pi.IonoPi.DigitalInput;
-import cc.sferalabs.libs.iono_pi.IonoPi.Output;
 import cc.sferalabs.libs.iono_pi.IonoPi.Wiegand;
 import cc.sferalabs.libs.iono_pi.onewire.OneWireBusDevice;
 import cc.sferalabs.sfera.core.Configuration;
@@ -66,13 +66,14 @@ public class IonoPi extends Driver {
 	private final static long INPUTS_OUTPUTS_READ_INTERVAL = 5 * 60 * 1000;
 	private final static long DIGITAL_INPUTS_FAST_POLLING_PERIOD = 3 * 1000;
 
-	private final IonoPi thisIonoPi;
+	private static IonoPi INSTANCE = null;
+	static boolean USE_KERNEL_MOD;
 
 	private final DigitalInputListener digitalInputslistener = new DigitalInputListener() {
 
 		@Override
-		public void onChange(DigitalInput di, boolean high) {
-			digitalInterruptsTs.put(di, System.currentTimeMillis());
+		public void onChange(cc.sferalabs.libs.iono_pi.IonoPi.DigitalInput di, boolean high) {
+			digitalInterruptsTs.put(DigitalInput.valueOf(di.name()), System.currentTimeMillis());
 			digitalInterruptsQueue.offer(di);
 		}
 	};
@@ -95,18 +96,28 @@ public class IonoPi extends Driver {
 
 	private final Map<AnalogInput, Float> lastAnalogValues = new HashMap<>();
 
+	private WiegandMonitor wm1;
+	private WiegandMonitor wm2;
+
 	public IonoPi(String id) {
 		super(id);
-		thisIonoPi = this;
+		INSTANCE = this;
 	}
 
 	@Override
 	protected boolean onInit(Configuration config) throws InterruptedException {
-		try {
-			cc.sferalabs.libs.iono_pi.IonoPi.init();
-		} catch (Exception e) {
-			log.error("Initialization error", e);
-			return false;
+		USE_KERNEL_MOD = config.get("kernel_mod", Files.exists(Paths.get("/sys/class/ionopi")));
+
+		if (USE_KERNEL_MOD) {
+			log.info("Using sysfs files");
+		} else {
+			log.info("Using library");
+			try {
+				cc.sferalabs.libs.iono_pi.IonoPi.init();
+			} catch (Throwable e) {
+				log.error("Library initialization error", e);
+				return false;
+			}
 		}
 
 		readInterval = config.get("read_interval", 2000);
@@ -114,11 +125,15 @@ public class IonoPi extends Driver {
 		boolean w1 = config.get("w1", false);
 		boolean w2 = config.get("w2", false);
 
-		try {
-			cc.sferalabs.libs.iono_pi.IonoPi.OneWire.getBusDevices();
-			oneWireBus = true;
-		} catch (IOException e) {
+		if (w1) {
 			oneWireBus = false;
+		} else {
+			try {
+				OneWire.getBusDevices();
+				oneWireBus = true;
+			} catch (IOException e) {
+				oneWireBus = false;
+			}
 		}
 		oneWireBus = config.get("one_wire_bus", oneWireBus);
 		log.debug("1-Wire bus {}", oneWireBus ? "enabled" : "disabled");
@@ -170,18 +185,44 @@ public class IonoPi extends Driver {
 		if (digitalInputs) {
 			int debounce = config.get("digital_debounce", 0);
 			for (DigitalInput di : DigitalInput.values()) {
-				di.setDebounce(debounce);
-				di.setListener(digitalInputslistener);
+				try {
+					di.setDebounce(debounce);
+					di.setListener(digitalInputslistener);
+				} catch (IOException e) {
+					log.error("Error initializing {}", di.name(), e);
+					return false;
+				}
 			}
 		}
 
 		wiegandEventBitsCount = config.get("wiegand_event_bits_count", false);
 
-		if (w1) {
-			TasksManager.execute(new WiegandMonitor(Wiegand.W1, this));
+		wm1 = new WiegandMonitor(Wiegand.W1, this);
+		try {
+			if (w1) {
+				wm1.init(config.get("w1_pulse_itvl_max", 2700), config.get("w1_pulse_itvl_min", 1200),
+						config.get("w1_pulse_width_max", 150), config.get("w1_pulse_width_min", 10));
+			} else {
+				wm1.quit();
+				wm1 = null;
+			}
+		} catch (IOException e) {
+			log.error("Error initializing W1", e);
+			return false;
 		}
-		if (w2) {
-			TasksManager.execute(new WiegandMonitor(Wiegand.W2, this));
+
+		wm2 = new WiegandMonitor(Wiegand.W2, this);
+		try {
+			if (w2) {
+				wm2.init(config.get("w2_pulse_itvl_max", 2700), config.get("w2_pulse_itvl_min", 1200),
+						config.get("w2_pulse_width_max", 150), config.get("w2_pulse_width_min", 10));
+			} else {
+				wm2.quit();
+				wm2 = null;
+			}
+		} catch (IOException e) {
+			log.error("Error initializing W2", e);
+			return false;
 		}
 
 		if (oneWireMax) {
@@ -224,7 +265,7 @@ public class IonoPi extends Driver {
 						Bus.postIfChanged(new DigitalInputIonoPiEvent(this, di, di.isHigh()));
 					}
 				}
-				Bus.postIfChanged(new LedIonoPiEvent(this, cc.sferalabs.libs.iono_pi.IonoPi.LED.isOn()));
+				Bus.postIfChanged(new LedIonoPiEvent(this, Led.isOn()));
 				lastInputsOutputsRead = now;
 			}
 
@@ -235,8 +276,8 @@ public class IonoPi extends Driver {
 					protected void execute() {
 						if (oneWireBus) {
 							try {
-								for (OneWireBusDevice d : cc.sferalabs.libs.iono_pi.IonoPi.OneWire.getBusDevices()) {
-									Bus.postIfChanged(new OneWireBusDeviceIonoPiEvent(thisIonoPi, d));
+								for (OneWireBusDevice d : OneWire.getBusDevices()) {
+									Bus.postIfChanged(new OneWireBusDeviceIonoPiEvent(INSTANCE, d));
 								}
 							} catch (Exception e) {
 								log.warn("1-Wire bus read error", e);
@@ -246,16 +287,14 @@ public class IonoPi extends Driver {
 							for (DigitalIO dio : oneWireMaxPins) {
 								int[] t_rh;
 								try {
-									t_rh = cc.sferalabs.libs.iono_pi.IonoPi.OneWire.maxDetectRead(dio, 7);
+									t_rh = OneWire.maxDetectRead(dio, 7);
 									if (t_rh != null) {
-										Bus.postIfChanged(
-												new OneWireMaxTemperatureIonoPiEvent(thisIonoPi, dio, t_rh[0]));
-										Bus.postIfChanged(new OneWireMaxHumidityIonoPiEvent(thisIonoPi, dio, t_rh[1]));
+										Bus.postIfChanged(new OneWireMaxTemperatureIonoPiEvent(INSTANCE, dio, t_rh[0]));
+										Bus.postIfChanged(new OneWireMaxHumidityIonoPiEvent(INSTANCE, dio, t_rh[1]));
 									}
 								} catch (IOException e) {
 									log.warn("1-Wire max read error", e);
 								}
-
 							}
 						}
 					}
@@ -273,7 +312,11 @@ public class IonoPi extends Driver {
 				long ts = e.getValue();
 				if (now < ts + DIGITAL_INPUTS_FAST_POLLING_PERIOD) {
 					DigitalInput di = e.getKey();
-					Bus.postIfChanged(new DigitalInputIonoPiEvent(this, di, di.isHigh()));
+					try {
+						Bus.postIfChanged(new DigitalInputIonoPiEvent(this, di, di.isHigh()));
+					} catch (IOException ex) {
+						log.error("Error reading {}", di.name(), ex);
+					}
 					digitalInterruptsQueue.offer(di);
 				}
 			}
@@ -285,7 +328,42 @@ public class IonoPi extends Driver {
 
 	@Override
 	protected void onQuit() {
-		cc.sferalabs.libs.iono_pi.IonoPi.shutdown();
+		if (USE_KERNEL_MOD) {
+			for (DigitalInput di : DigitalInput.values()) {
+				try {
+					di.setListener(null);
+				} catch (IOException e) {
+				}
+			}
+			try {
+				wm1.quit();
+			} catch (Exception e) {
+			}
+			try {
+				wm2.quit();
+			} catch (Exception e) {
+			}
+		} else {
+			cc.sferalabs.libs.iono_pi.IonoPi.shutdown();
+		}
+	}
+
+	/**
+	 * @param file
+	 * @return
+	 * @throws IOException
+	 */
+	static String readSysFsFile(String file) throws IOException {
+		return new String(Files.readAllBytes(Paths.get("/sys/class/ionopi", file)), StandardCharsets.UTF_8).trim();
+	}
+
+	/**
+	 * @param file
+	 * @param val
+	 * @throws IOException
+	 */
+	static void writeSysFsFile(String file, String val) throws IOException {
+		Files.write(Paths.get("/sys/class/ionopi", file), val.getBytes(StandardCharsets.UTF_8));
 	}
 
 	/**
@@ -298,19 +376,20 @@ public class IonoPi extends Driver {
 	/**
 	 * Sets the state of the green LED
 	 * 
-	 * @param on
-	 *            {@code true} for on, {@code false} for off
+	 * @param on {@code true} for on, {@code false} for off
+	 * @throws IOException if an error occurs
 	 */
-	public void setLed(boolean on) {
-		cc.sferalabs.libs.iono_pi.IonoPi.LED.set(on);
+	public void setLed(boolean on) throws IOException {
+		Led.set(on);
 		Bus.postIfChanged(new LedIonoPiEvent(this, on));
 	}
 
 	/**
 	 * @param o
 	 * @param closed
+	 * @throws IOException
 	 */
-	private void setO(Output o, boolean closed) {
+	private void setO(Output o, boolean closed) throws IOException {
 		o.set(closed);
 		Bus.postIfChanged(new OutputIonoPiEvent(this, o, closed));
 	}
@@ -318,82 +397,84 @@ public class IonoPi extends Driver {
 	/**
 	 * Sets the state of the output with the specified name
 	 * 
-	 * @param output
-	 *            output name
-	 * @param closed
-	 *            {@code true} to close the relay, {@code false} to open it
+	 * @param output output name
+	 * @param closed {@code true} to close the relay, {@code false} to open it
+	 * @throws IOException if an error occurs
 	 */
-	public void setO(String output, boolean closed) {
+	public void setO(String output, boolean closed) throws IOException {
 		setO(Output.valueOf(output), closed);
 	}
 
 	/**
 	 * Sets the state of relay O1
 	 * 
-	 * @param closed
-	 *            {@code true} to close the relay, {@code false} to open it
+	 * @param closed {@code true} to close the relay, {@code false} to open it
+	 * @throws IOException if an error occurs
 	 */
-	public void setO1(boolean closed) {
+	public void setO1(boolean closed) throws IOException {
 		setO(Output.O1, closed);
 	}
 
 	/**
 	 * Sets the state of relay O2
 	 * 
-	 * @param closed
-	 *            {@code true} to close the relay, {@code false} to open it
+	 * @param closed {@code true} to close the relay, {@code false} to open it
+	 * @throws IOException if an error occurs
 	 */
-	public void setO2(boolean closed) {
+	public void setO2(boolean closed) throws IOException {
 		setO(Output.O2, closed);
 	}
 
 	/**
 	 * Sets the state of relay O3
 	 * 
-	 * @param closed
-	 *            {@code true} to close the relay, {@code false} to open it
+	 * @param closed {@code true} to close the relay, {@code false} to open it
+	 * @throws IOException if an error occurs
 	 */
-	public void setO3(boolean closed) {
+	public void setO3(boolean closed) throws IOException {
 		setO(Output.O3, closed);
 	}
 
 	/**
 	 * Sets the state of relay O4
 	 * 
-	 * @param closed
-	 *            {@code true} to close the relay, {@code false} to open it
+	 * @param closed {@code true} to close the relay, {@code false} to open it
+	 * @throws IOException if an error occurs
 	 */
-	public void setO4(boolean closed) {
+	public void setO4(boolean closed) throws IOException {
 		setO(Output.O4, closed);
 	}
 
 	/**
 	 * Sets the state of open collector OC1
 	 * 
-	 * @param closed
-	 *            {@code true} to close the open collector, {@code false} to open it
+	 * @param closed {@code true} to close the open collector, {@code false} to open
+	 *               it
+	 * @throws IOException if an error occurs
 	 */
-	public void setOc1(boolean closed) {
+	public void setOc1(boolean closed) throws IOException {
 		setO(Output.OC1, closed);
 	}
 
 	/**
 	 * Sets the state of open collector OC2
 	 * 
-	 * @param closed
-	 *            {@code true} to close the open collector, {@code false} to open it
+	 * @param closed {@code true} to close the open collector, {@code false} to open
+	 *               it
+	 * @throws IOException if an error occurs
 	 */
-	public void setOc2(boolean closed) {
+	public void setOc2(boolean closed) throws IOException {
 		setO(Output.OC2, closed);
 	}
 
 	/**
 	 * Sets the state of open collector OC3
 	 * 
-	 * @param closed
-	 *            {@code true} to close the open collector, {@code false} to open it
+	 * @param closed {@code true} to close the open collector, {@code false} to open
+	 *               it
+	 * @throws IOException if an error occurs
 	 */
-	public void setOc3(boolean closed) {
+	public void setOc3(boolean closed) throws IOException {
 		setO(Output.OC3, closed);
 	}
 
@@ -401,19 +482,20 @@ public class IonoPi extends Driver {
 	 * Returns the state of the green LED
 	 * 
 	 * @return {@code true} if the LED is on, {@code false} otherwise
+	 * @throws IOException if an error occurs
 	 */
-	public boolean isLedOn() {
-		return cc.sferalabs.libs.iono_pi.IonoPi.LED.isOn();
+	public boolean isLedOn() throws IOException {
+		return Led.isOn();
 	}
 
 	/**
 	 * Returns the state of the specified relay
 	 * 
-	 * @param index
-	 *            the index of the relay to address (1 to 4)
+	 * @param index the index of the relay to address (1 to 4)
 	 * @return {@code true} if the relay is closed, {@code false} otherwise
+	 * @throws IOException if an error occurs
 	 */
-	public boolean isRelClosed(int index) {
+	public boolean isRelClosed(int index) throws IOException {
 		Output o;
 		switch (index) {
 		case 1:
@@ -442,11 +524,11 @@ public class IonoPi extends Driver {
 	/**
 	 * Returns the state of the specified digital input
 	 * 
-	 * @param index
-	 *            the index of the digital input to address (1 to 6)
+	 * @param index the index of the digital input to address (1 to 6)
 	 * @return {@code true} if the digital input is high, {@code false} otherwise
+	 * @throws IOException if an error occurs
 	 */
-	public boolean isDiHigh(int index) {
+	public boolean isDiHigh(int index) throws IOException {
 		return DigitalInput.values()[index - 1].isHigh();
 	}
 
@@ -454,10 +536,8 @@ public class IonoPi extends Driver {
 	 * Returns the date/time provided by the hardware RTC
 	 * 
 	 * @return the date/time provided by the hardware RTC
-	 * @throws IOException
-	 *             if an I/O error occurs
-	 * @throws InterruptedException
-	 *             if the current thread is interrupted
+	 * @throws IOException          if an I/O error occurs
+	 * @throws InterruptedException if the current thread is interrupted
 	 */
 	public String getHwClockDate() throws IOException, InterruptedException {
 		Process p = new ProcessBuilder("hwclock", "-r").start();

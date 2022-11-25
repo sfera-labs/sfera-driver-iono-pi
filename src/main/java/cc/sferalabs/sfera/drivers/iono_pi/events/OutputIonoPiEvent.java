@@ -22,8 +22,10 @@
 
 package cc.sferalabs.sfera.drivers.iono_pi.events;
 
-import cc.sferalabs.libs.iono_pi.IonoPi.Output;
+import java.util.Locale;
+
 import cc.sferalabs.sfera.drivers.iono_pi.IonoPi;
+import cc.sferalabs.sfera.drivers.iono_pi.Output;
 import cc.sferalabs.sfera.events.BooleanEvent;
 
 /**
@@ -40,7 +42,7 @@ public class OutputIonoPiEvent extends BooleanEvent implements IonoPiEvent {
 	private final Output output;
 
 	public OutputIonoPiEvent(IonoPi source, Output output, boolean closed) {
-		super(source, output.toString().toLowerCase(), closed);
+		super(source, output.name().toLowerCase(Locale.ENGLISH), closed);
 		this.output = output;
 	}
 

@@ -1,10 +1,13 @@
 <HTML>
 	<body>
-		Driver for the integration of <a href="https://www.sferalabs.cc/iono-pi">Iono Pi</a> for Sfera running on Raspberry Pi.
+		Driver for <a href="https://www.sferalabs.cc/product/iono-pi">Iono Pi</a> running Sfera locally.
+		Requires the installation of the Iono Pi kernel module (recommended) or the Iono Pi C library.
 		
 		@author Giampiero Baggiani
 		@sfera.config type
 			cc.sferalabs.sfera.drivers.iono_pi.IonoPi
+		@sfera.config kernel_mod
+			Set to true to use the kernel module sysfs files, false to use the C library. If not set, the driver will use the kernel module if enabled, the C library otherwise
 		@sfera.config read_interval
 			Interval, in milliseconds, between subsequent readings of analog inputs and 1-Wire devices. If the value is set below 2000 (i.e. less than 2 seconds) the specified interval is only applied to analog inputs; 1-Wire devices will be polled with a 2 seconds interval. Set to 0 to disable analog inputs polling.
 		@sfera.config analog_min_variation
@@ -18,12 +21,19 @@
 		@sfera.config w2
 			Set to true to enable and monitor Wiegand interface 2
 		@sfera.config one_wire_bus
-			Set to false to disable the reading of the 1-Wire bus devices connected on TTL1. If not specified the monitoring will be enabled if the 1-Wire interface is enabled in the Raspberry Pi OS configuration.
+			Set to false to disable the reading of the 1-Wire bus devices connected on TTL1. If not specified the monitoring will be enabled if the 1-Wire interface is enabled in the Raspberry Pi OS configuration
 		@sfera.config one_wire_max
-			Specify the TTL number(s) on which to enable the MaxDetect 1-Wire interface and monitor the connected devices. 
-			E.g. set to 2 to monitor TTL2, set to [3, 4] to monitor TTL3 and TTL4.
+			Specify the TTL number(s) on which to enable the MaxDetect 1-Wire interface and monitor the connected devices (not supported when using the kernel module). 
+			E.g. set to 2 to monitor TTL2, set to [3, 4] to monitor TTL3 and TTL4
 		@sfera.config wiegand_event_bits_count
-			Set to true to add the bits count to the simple value of Wiegand events. The event's value will be a string with the format "&lt;bits_count&gt;/&lt;data_value&gt;".
-
+			Set to true to add the bits count to the simple value of Wiegand events. The event's value will be a string with the format "&lt;bits_count&gt;/&lt;data_value&gt;"
+		@sfera.config w&lt;N&gt;_pulse_itvl_min
+			Supported only when using the kernel module. Wiegand interface &lt;N&gt; minimum interval between pulses accepted, in µs. Defaults to 1200
+		@sfera.config w&lt;N&gt;_pulse_itvl_max
+			Supported only when using the kernel module. Wiegand interface &lt;N&gt; maximum interval between pulses accepted, in µs. Defaults to 2700
+		@sfera.config w&lt;N&gt;_pulse_width_min
+			Supported only when using the kernel module. Wiegand interface &lt;N&gt; minimum bit pulse width accepted, in µs. Defaults to 10
+		@sfera.config w&lt;N&gt;_pulse_width_max
+			Supported only when using the kernel module. Wiegand interface &lt;N&gt; maximum bit pulse width accepted, in µs. Defaults to 150
 	</body>
 </HTML>

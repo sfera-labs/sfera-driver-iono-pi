@@ -22,7 +22,9 @@
 
 package cc.sferalabs.sfera.drivers.iono_pi.events;
 
-import cc.sferalabs.libs.iono_pi.IonoPi.DigitalInput;
+import java.util.Locale;
+
+import cc.sferalabs.sfera.drivers.iono_pi.DigitalInput;
 import cc.sferalabs.sfera.drivers.iono_pi.IonoPi;
 import cc.sferalabs.sfera.events.BooleanEvent;
 
@@ -40,7 +42,7 @@ public class DigitalInputIonoPiEvent extends BooleanEvent implements IonoPiEvent
 	private final DigitalInput input;
 
 	public DigitalInputIonoPiEvent(IonoPi source, DigitalInput input, boolean high) {
-		super(source, input.toString().toLowerCase(), high);
+		super(source, input.name().toLowerCase(Locale.ENGLISH), high);
 		this.input = input;
 	}
 

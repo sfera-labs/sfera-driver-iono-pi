@@ -22,6 +22,8 @@
 
 package cc.sferalabs.sfera.drivers.iono_pi.events;
 
+import java.util.Locale;
+
 import cc.sferalabs.libs.iono_pi.IonoPi.DigitalIO;
 import cc.sferalabs.sfera.drivers.iono_pi.IonoPi;
 import cc.sferalabs.sfera.events.NumberEvent;
@@ -42,7 +44,7 @@ public class OneWireMaxHumidityIonoPiEvent extends NumberEvent implements IonoPi
 	private final int ttlIndex;
 
 	public OneWireMaxHumidityIonoPiEvent(IonoPi source, DigitalIO dio, int val) {
-		super(source, "onewire.max." + dio.toString().toLowerCase() + ".rh", val / 10.0);
+		super(source, "onewire.max." + dio.name().toLowerCase(Locale.ENGLISH) + ".rh", val / 10.0);
 		this.ttlIndex = dio.ordinal() + 1;
 	}
 

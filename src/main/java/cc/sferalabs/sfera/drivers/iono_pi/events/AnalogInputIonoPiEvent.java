@@ -22,7 +22,9 @@
 
 package cc.sferalabs.sfera.drivers.iono_pi.events;
 
-import cc.sferalabs.libs.iono_pi.IonoPi.AnalogInput;
+import java.util.Locale;
+
+import cc.sferalabs.sfera.drivers.iono_pi.AnalogInput;
 import cc.sferalabs.sfera.drivers.iono_pi.IonoPi;
 import cc.sferalabs.sfera.events.NumberEvent;
 
@@ -41,7 +43,7 @@ public class AnalogInputIonoPiEvent extends NumberEvent implements IonoPiEvent {
 	private final int rawValue;
 
 	public AnalogInputIonoPiEvent(IonoPi source, AnalogInput input, int value) {
-		super(source, input.toString().toLowerCase(), toVoltage(input, value));
+		super(source, input.name().toLowerCase(Locale.ENGLISH), toVoltage(input, value));
 		this.input = input;
 		this.rawValue = value;
 	}
